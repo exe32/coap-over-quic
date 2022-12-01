@@ -1,0 +1,1 @@
+python coap_client_datagrams.py --ca-certs certs/pycacert.pem --remoteQuicHost 127.0.0.1 --remoteQuicPort 4784 --secrets-log secret.key
