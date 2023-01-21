@@ -21,9 +21,9 @@ from aioquic.quic.events import ConnectionTerminated, DatagramFrameReceived, Qui
 
 # declaring globals to store info about UDP and QUIC connections
 # It probably be shouldn't done like this, but I don't have better idea, needs to be fixed
-quic_connection: list = []
-udp_connection_transport: list = []
-udp_connection_address: list = []
+quic_connection: list = [None]
+udp_connection_transport: list = [None]
+udp_connection_address: list = [None]
 
 class CoapOverQuicProtocol(QuicConnectionProtocol):
     """
@@ -52,7 +52,7 @@ class CoapOverQuicProtocol(QuicConnectionProtocol):
                     "Trying to forward QUIC data via UDP towards the UDP client"
                 )
                 udp_connection_transport[0].sendto(
-                    data_from_server, udp_connection_address
+                    data_from_server, udp_connection_address[0]
                 )
                 logger.debug("Forwarding done")
 
