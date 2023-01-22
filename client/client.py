@@ -1,8 +1,7 @@
 """
-QUIC Server which consumes LwM2M (CoAP) over QUIC
-Performs translation of LwM2M/QUIC and forwards it to proper
-LwM2M Server via REST (LwM2M is base64 encoded).
-Any LwM2M Server generated message are parsed and send back to QUIC client (LwM2M/QUIC)
+QUIC Client which consumes any UDP traffic and forwards it over QUIC to remote QUIC Server
+Designed originally for application protocol with its own re-try mechanism - CoAP (LwM2M).
+QUIC tunnel uses unreliable QUIC Datagram (https://www.rfc-editor.org/rfc/rfc9221.html)
 """
 
 import argparse
@@ -29,9 +28,9 @@ allowed_alpns = ["http/0.9", "http/1.0", "http/1.1", "spdy/1", "spdy/2", "spdy/3
 "pop3", "managesieve", "coap", "xmpp-client", "xmpp-server", "acme-tls/1", 
 "mqtt", "dot", "ntske/1", "sunrpc", "h3", "smb", "irc", "nntp", "nnsp", "doq", "sip/2", "tds/8.0"]
 
-class CoapOverQuicProtocol(QuicConnectionProtocol):
+class UdpOverQuicProtocol(QuicConnectionProtocol):
     """
-    Main Class to handle LwM2M (CoAP) over QUIC
+    Main Class to handle forwarding UDP over QUIC
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -64,9 +63,9 @@ class CoapOverQuicProtocol(QuicConnectionProtocol):
             logger.info("QUIC Connection termination reason: %s", {event.reason_phrase})
 
 
-class CoapOverUdp(asyncio.DatagramProtocol):
+class UdpProtocol(asyncio.DatagramProtocol):
     """
-    Main Class to handle receiving LwM2M (CoAP) over UDP and forward it via QUIC
+    Main Class to handle receiving UDP traffic and forward it via QUIC
     """
     def __init__(self):
         super().__init__()
@@ -78,7 +77,7 @@ class CoapOverUdp(asyncio.DatagramProtocol):
 
     def datagram_received(self, data: bytes, addr: tuple) -> None:
         udp_connection_address[0] = addr
-        logger = logging.getLogger("[Coap Over UDP]")
+        logger = logging.getLogger("[UDP receiver]")
         logger.info("Received UDP message \n%s", {data[:15]})
         if quic_connection[0] is not None:
             try:
@@ -104,7 +103,7 @@ async def udp_listener(local_udp_port: int) -> None:
     """
     loop = asyncio.get_running_loop()
     await loop.create_datagram_endpoint(
-        CoapOverUdp, local_addr=("127.0.0.1", local_udp_port)
+        UdpProtocol, local_addr=("127.0.0.1", local_udp_port)
     )
 
 
@@ -121,10 +120,10 @@ async def main(
         configuration=config,
         host=remote_quic_host,
         port=remote_quic_port,
-        create_protocol=CoapOverQuicProtocol,
+        create_protocol=UdpOverQuicProtocol,
     ) as client:
 
-        client = cast(CoapOverQuicProtocol, client)
+        client = cast(UdpOverQuicProtocol, client)
         # start UDP listener
         await udp_listener(local_udp_port)
         # start QUIC Client and UDP->QUIC forwarder
@@ -135,7 +134,7 @@ def parse_args() -> argparse.Namespace:
     """
     Parse the startup arguments.
     """
-    parser = argparse.ArgumentParser(description="CoAP over QUIC client")
+    parser = argparse.ArgumentParser(description="UDP over QUIC tunneling client")
     parser.add_argument(
         "--remoteQuicHost",
         type=str,
@@ -173,10 +172,6 @@ def parse_args() -> argparse.Namespace:
         "-v", "--verbose", action="store_true", help="increase logging verbosity"
     )
     return parser.parse_args()
-
-
-
-
 
 if __name__ == "__main__":
     startArgs = parse_args()
