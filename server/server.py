@@ -1,6 +1,8 @@
 """
 QUIC Server which consumes UDP traffic (such as LwM2M/CoAP) over QUIC
-Performs translation of LwM2M/QUIC and forwards further via UDP
+Traffic is then forwarded further to remote UDP Server
+Designed originally for application protocol with its own re-try mechanism - CoAP (LwM2M).
+QUIC tunnel uses unreliable QUIC Datagram (https://www.rfc-editor.org/rfc/rfc9221.html)
 """
 
 import argparse
@@ -33,9 +35,9 @@ class NotRegisterMessage(Exception):
     """
 
 
-class CoapServerProtocol(QuicConnectionProtocol):
+class QuicServerProtocol(QuicConnectionProtocol):
     """
-    Main Class to handle LwM2M (CoAP) over QUIC
+    Main Class to handle incoming QUIC traffic (which enapsulated UDP)
     """
 
     def __init__(self, *args, **kwargs):
@@ -109,13 +111,13 @@ class SessionTicketStore:
         return self.tickets.pop(label, None)
 
 
-def get_quic_connection(cid: str) -> Optional[CoapServerProtocol]:
+def get_quic_connection(cid: str) -> Optional[QuicServerProtocol]:
     """
     Return QUIC Connection for cid. If does not exist - return None
     """
     quic_forwarder_logger = logging.getLogger("[QUIC forwarder]")
     try:
-        quic_connection: CoapServerProtocol = quic_connections[cid]
+        quic_connection: QuicServerProtocol = quic_connections[cid]
         return quic_connection
     except (KeyError, NameError):
         quic_forwarder_logger.error(
@@ -124,7 +126,7 @@ def get_quic_connection(cid: str) -> Optional[CoapServerProtocol]:
         return None
 
 
-class QuicToUdpProtocol(asyncio.DatagramProtocol):
+class UdpClientProtocol(asyncio.DatagramProtocol):
     def __init__(self, cid):
         self.transport = None
         self.cid = cid
@@ -155,7 +157,7 @@ async def establish_udp_connection(address, port, cid):
     loop = asyncio.get_running_loop()
     udp_forwarder_logger.debug("Establishing UDP 'connection' towards %s:%s", address, port)
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: QuicToUdpProtocol(cid),
+        lambda: UdpClientProtocol(cid),
         remote_addr=(address, port))
 
 
@@ -217,7 +219,7 @@ async def start_quic_server(
         host,
         port,
         configuration=config,
-        create_protocol=CoapServerProtocol,
+        create_protocol=QuicServerProtocol,
         session_ticket_fetcher=session_ticket_store.pop,
         session_ticket_handler=session_ticket_store.add,
         retry=retry,
@@ -231,7 +233,7 @@ def parse_args() -> argparse.Namespace:
     """
     Parse the startup arguments.
     """
-    parser = argparse.ArgumentParser(description="CoAP over QUIC server")
+    parser = argparse.ArgumentParser(description="UDP over QUIC tunneling server")
     parser.add_argument(
         "--host",
         type=str,

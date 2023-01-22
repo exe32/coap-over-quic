@@ -28,7 +28,7 @@ allowed_alpns = ["http/0.9", "http/1.0", "http/1.1", "spdy/1", "spdy/2", "spdy/3
 "pop3", "managesieve", "coap", "xmpp-client", "xmpp-server", "acme-tls/1", 
 "mqtt", "dot", "ntske/1", "sunrpc", "h3", "smb", "irc", "nntp", "nnsp", "doq", "sip/2", "tds/8.0"]
 
-class UdpOverQuicProtocol(QuicConnectionProtocol):
+class QuicClientProtocol(QuicConnectionProtocol):
     """
     Main Class to handle forwarding UDP over QUIC
     """
@@ -63,7 +63,7 @@ class UdpOverQuicProtocol(QuicConnectionProtocol):
             logger.info("QUIC Connection termination reason: %s", {event.reason_phrase})
 
 
-class UdpProtocol(asyncio.DatagramProtocol):
+class UdpServerProtocol(asyncio.DatagramProtocol):
     """
     Main Class to handle receiving UDP traffic and forward it via QUIC
     """
@@ -103,7 +103,7 @@ async def udp_listener(local_udp_port: int) -> None:
     """
     loop = asyncio.get_running_loop()
     await loop.create_datagram_endpoint(
-        UdpProtocol, local_addr=("127.0.0.1", local_udp_port)
+        UdpServerProtocol, local_addr=("127.0.0.1", local_udp_port)
     )
 
 
@@ -120,10 +120,10 @@ async def main(
         configuration=config,
         host=remote_quic_host,
         port=remote_quic_port,
-        create_protocol=UdpOverQuicProtocol,
+        create_protocol=QuicClientProtocol,
     ) as client:
 
-        client = cast(UdpOverQuicProtocol, client)
+        client = cast(QuicClientProtocol, client)
         # start UDP listener
         await udp_listener(local_udp_port)
         # start QUIC Client and UDP->QUIC forwarder
