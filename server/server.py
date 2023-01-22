@@ -81,9 +81,8 @@ class CoapServerProtocol(QuicConnectionProtocol):
 
 
         if isinstance(event, ProtocolNegotiated):
-            logger.info("QUIC Connection established")
-            if str(event.alpn_protocol) == "coap":
-                self.first_message = True
+            logger.info("QUIC Connection established, protocol negotiated: %s", event.alpn_protocol)
+            self.first_message = True                
 
         if isinstance(event, ConnectionTerminated):
             logger.info("QUIC Connection termination reason: %s", {event.reason_phrase})
@@ -123,10 +122,6 @@ def get_quic_connection(cid: str) -> Optional[CoapServerProtocol]:
             "QUIC Connection for CID %s not found", cid
         )
         return None
-
-udp_connections = {}
-udp_transports = {}
-quic_connections = {}
 
 
 class QuicToUdpProtocol(asyncio.DatagramProtocol):
@@ -299,6 +294,14 @@ http_server_logger = logging.getLogger("[HTTP Server]")
 quic_event_logger = logging.getLogger("[QUIC event]")
 udp_forwarder_logger = logging.getLogger("[UDP Forwarder]")
 
+udp_connections = {}
+udp_transports = {}
+quic_connections = {}
+
+allowed_alpns = ["http/0.9", "http/1.0", "http/1.1", "spdy/1", "spdy/2", "spdy/3", 
+"stun.turn", "stun.nat-discovery", "h2", "h2c", "webrtc", "c-webrtc", "ftp", "imap", 
+"pop3", "managesieve", "coap", "xmpp-client", "xmpp-server", "acme-tls/1", 
+"mqtt", "dot", "ntske/1", "sunrpc", "h3", "smb", "irc", "nntp", "nnsp", "doq", "sip/2", "tds/8.0"]
 
 ## populated by quic_event_received() and handled by http_forwarder()
 quic_to_udp_queue = queue.Queue()
@@ -332,7 +335,7 @@ if __name__ == "__main__":
 
     # preparing QUIC Server configuration
     configuration = QuicConfiguration(
-        alpn_protocols=["coap"],
+        alpn_protocols=allowed_alpns,
         is_client=False,
         quic_logger=QUIC_LOGGER,
         max_datagram_frame_size=65535,

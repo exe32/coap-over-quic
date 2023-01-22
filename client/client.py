@@ -24,6 +24,10 @@ from aioquic.quic.events import ConnectionTerminated, DatagramFrameReceived, Qui
 quic_connection: list = [None]
 udp_connection_transport: list = [None]
 udp_connection_address: list = [None]
+allowed_alpns = ["http/0.9", "http/1.0", "http/1.1", "spdy/1", "spdy/2", "spdy/3", 
+"stun.turn", "stun.nat-discovery", "h2", "h2c", "webrtc", "c-webrtc", "ftp", "imap", 
+"pop3", "managesieve", "coap", "xmpp-client", "xmpp-server", "acme-tls/1", 
+"mqtt", "dot", "ntske/1", "sunrpc", "h3", "smb", "irc", "nntp", "nnsp", "doq", "sip/2", "tds/8.0"]
 
 class CoapOverQuicProtocol(QuicConnectionProtocol):
     """
@@ -151,6 +155,12 @@ def parse_args() -> argparse.Namespace:
         help="The local UDP port on which application should listen on",
     )
     parser.add_argument(
+        "--alpnProtocol",
+        type=str,
+        default="coap",
+        help="ALPN protocol introduced during handshake",
+    )
+    parser.add_argument(
         "--ca-certs", type=str, help="load CA certificates from the specified file"
     )
     parser.add_argument(
@@ -176,12 +186,18 @@ if __name__ == "__main__":
         level=logging.DEBUG if startArgs.verbose else logging.INFO,
     )
 
+    if startArgs.alpnProtocol in allowed_alpns:
+        selected_alpn = [startArgs.alpnProtocol]
+    else:
+        logging.warning("Selected ALPN %s not supported, fallback to default 'coap'", startArgs.alpnProtocol)   
+        selected_alpn = ["coap"]
+
     quic_configuration = QuicConfiguration(
-        alpn_protocols=["coap"],
-        is_client=True,
-        max_datagram_frame_size=65535,
-        verify_mode=ssl.CERT_REQUIRED,
-        idle_timeout=86400,
+        alpn_protocols = selected_alpn,
+        is_client = True,
+        max_datagram_frame_size = 65535,
+        verify_mode = ssl.CERT_REQUIRED,
+        idle_timeout = 86400,
     )
 
     if startArgs.ca_certs:
