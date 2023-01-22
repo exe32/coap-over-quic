@@ -1,1 +1,1 @@
-python coap_server_datagrams_udp.py --certificate certs/ssl_cert.pem --private-key certs/ssl_key.pem --host 127.0.0.1 --verbose
+python server/server.py --certificate certs/ssl_cert.pem --private-key certs/ssl_key.pem --host 127.0.0.1 --verbose
